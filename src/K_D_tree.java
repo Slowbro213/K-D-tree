@@ -1,6 +1,7 @@
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Stack;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.RecursiveAction;
 
@@ -9,6 +10,10 @@ import static java.lang.Math.*;
 public class K_D_tree{
     private class Node{
         double[] point;
+
+        double currentBest;
+
+        int dimension;
         Node left;
         Node right;
 
@@ -16,6 +21,11 @@ public class K_D_tree{
             this.point = coordinates;
             this.left = left;
             this.right = right;
+        }
+
+        public Node(double[] point, int dimension) {
+            this.point = point;
+            this.dimension = dimension;
         }
 
         public Node(double[] coordinates) {
@@ -213,7 +223,7 @@ public class K_D_tree{
             }
             System.out.println();
             */
-            return new Node(point);
+            return new Node(point,depth%dimensions);
         }
         if (point[depth%dimensions] < root.point[depth%dimensions]){
             root.left = insertrec(point,root.left,depth+1);
@@ -227,51 +237,56 @@ public class K_D_tree{
     public double[] nearest_neighbor(double[] point) {
         if (point.length != dimensions)
             throw new RuntimeException("Wrong Dimensions");
-        Node nearest = nearest_neighborrec(point, root, 0);
+        Node nearest = nearest_neighborrec(point,root);
         return nearest.point;
     }
 
-    private Node nearest_neighborrec(double[] point, Node root, int depth) {
+    private Node nearest_neighborrec(double[] point, Node root) {
         if (root == null)
             return null;
 
+        if(root.left==null && root.right == null)
+        {
+            root.currentBest = findDistance(point,root.point);
+            return root;
+        }
+
         Node closest, explore;
-        if (point[depth % dimensions] < root.point[depth % dimensions]) {
-            closest = nearest_neighborrec(point, root.left, depth + 1);
+        if (point[root.dimension] < root.point[root.dimension]) {
+            closest = nearest_neighborrec(point, root.left);
             explore = root.right;
         } else {
-            closest = nearest_neighborrec(point, root.right, depth + 1);
+            closest = nearest_neighborrec(point, root.right);
             explore = root.left;
         }
 
         // Update closest if necessary
-        if (closest == null || findDistance(point, closest.point) > findDistance(point, root.point))
+        double roottopoint = findDistance(point, root.point);
+        if (closest == null || closest.currentBest > roottopoint) {
+            root.currentBest=roottopoint;
             closest = root;
+        }
 
-        // Check if need to explore the other subtree
         if (explore != null) {
-            double distSplit = Math.abs(point[depth % dimensions] - root.point[depth % dimensions]);
-            double bestDist = sqrt(findDistance(point, closest.point));
-            if (distSplit < bestDist) {
-                Node otherClosest = nearest_neighborrec(point, explore, depth + 1);
-                if (otherClosest != null && sqrt(findDistance(point, otherClosest.point)) < bestDist)
+            double distSplit = Math.abs(point[root.dimension] - root.point[root.dimension]);
+            double bestDist = closest.currentBest;
+            if (distSplit< sqrt(bestDist)) {
+                Node otherClosest = nearest_neighborrec(point, explore);
+                if (otherClosest.currentBest < bestDist){
                     closest = otherClosest;
+                }
             }
         }
         return closest;
     }
 
-    public double[][] rangesearch()
-    {
-        return new double[10][10];
-    }
     private double findDistance(double[] point1, double[] point2)
     {
         double dist=0;
         for(int i= 0; i< point1.length;i++)
         {
             double number = (abs(point2[i] - point1[i]));
-            dist += number*number;
+            dist += pow(number,2);
         }
         return dist;
     }
@@ -382,37 +397,7 @@ public class K_D_tree{
     public int getDimensions() {
         return dimensions;
     }
-    static void swap(double[][] arr, int i, int j)
-    {
-        double[] temp = new double[arr[j].length];
-        System.arraycopy(arr[i],0,temp,0,arr[i].length);
-        System.arraycopy(arr[j],0,arr[i],0,arr[j].length);
-        System.arraycopy(temp,0,arr[j],0,arr[j].length);
-    }
 
-    // This function takes last element as pivot,
-    // places the pivot element at its correct position
-    // in sorted array, and places all smaller to left
-    // of pivot and all greater elements to right of pivot
-    static int partition(double[][] arr, int low, int high,double pivotValue,int k)
-    {
-        int i = low;
-
-        for (int j = low; j < high; j++) {
-            if (arr[j][k] < pivotValue) {
-                swap(arr, i, j);
-                i++;
-            }
-            else if(arr[j][k] == pivotValue){
-                swap(arr, j, high);
-            }
-        }
-
-        // Move the pivot element to its correct position
-        swap(arr, i, high);
-
-        return i;
-    }
 }
 
 class FirstApproach extends RecursiveAction{
@@ -541,4 +526,20 @@ class ThirdApproach extends RecursiveAction {
         }
         invokeAll(new ThirdApproach(tree,right,k, d + 1),new ThirdApproach(tree,left,j, d + 1));
     }
+}
+
+class Tuple<T,E>{
+    T obj1;
+    E obj2;
+
+    public Tuple(T obj1, E obj2) {
+        this.obj1 = obj1;
+        this.obj2 = obj2;
+    }
+    public Tuple(Tuple<T,E> t)
+    {
+        this.obj1=t.obj1;
+        this.obj2= t.obj2;
+    }
+    public Tuple(){}
 }

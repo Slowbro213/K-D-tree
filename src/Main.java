@@ -1,3 +1,6 @@
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Random;
@@ -7,7 +10,7 @@ import static java.lang.Math.sqrt;
 
 public class Main {
     public static void main(String[] args) {
-        Tester.test1(5,5,10,10000,false);
+        Tester.test1(6,5,10,1000,false);
         //the first parameter deteremines up to what dimension the test will go to
         //the second parameter tells us how many times will the size multiply itself with the third parameter where size starts off as 10
         //the fourth parameter determines how many searches per size of tree will be conducted.
@@ -15,6 +18,9 @@ public class Main {
         //generated points by the tester. we then test each tree with those same points and check if the result is the same as the bruteforce result
         //the number of points is equal to the number of searches determined by the one who calls the function
         //the sole purpose of the fourth parameter is to show that the tree gives back the correct point
+        //if during the testing it takes a while for the searches to appear, its because there is a high number of searches being done
+        //and probably the finding of the nearest neighbor through bruteforce part.
+        // a high number of searches can help get rid of the variance that comes with time of code exceution
         //the fifth parameter decides whether the tree creation process should be done with threading or not.
     }
 
@@ -40,24 +46,32 @@ public class Main {
             double diff = point2[i] - point1[i];
             dist += diff * diff;
         }
-        return sqrt(dist);
+        return dist;
     }
 }
 
 class Tester{
-
-    static int dim = 2;
     static void test1(int dimensions,int n,int increment,int searches,boolean threaded){
+
+        warmuprounds();
         Random rand = new Random();
 
+        File file = new File("K_D_tree_performance.csv");
+        FileWriter writer=null;
+        try {
+            writer = new FileWriter(file);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        StringBuilder stringBuilder = new StringBuilder("Dimension,n,first_approach_tree_buildtime,second_approach_tree_buildtime,third_approach_tree_buildtime,linearsearchtime,searchtime1,searchtime2,searchtime3\n");
+        System.out.println("Testing has Started....");
         System.out.println("tree creation time is in miliseconds, search time is in nanoseconds");
         for(int i = 2;i<=dimensions;i++)
         {
-            System.out.println("Dimensions: "+i);
-            int size = 10;
-            System.out.println("n      first     second      third      search1      search2      search3");
+            int size = 30;
             for(int j = 0; j < n;j++)
             {
+                System.gc();
                 double[][] points = new double[size][i];
                 for(int k=0;k<size;k++)
                 {
@@ -72,52 +86,115 @@ class Tester{
                         point[m][g] = rand.nextInt();
                     }
                 }
-                System.out.print(size+ "      ");
+                stringBuilder.append(i + "," + size + ",");
                 long time = System.currentTimeMillis();
                 K_D_tree tree1 = new K_D_tree(i,points,1,threaded);
-                System.out.print(System.currentTimeMillis()-time + "      ");
+                stringBuilder.append(System.currentTimeMillis()-time + ",");
                 time = System.currentTimeMillis();
                 K_D_tree tree2 = new K_D_tree(i,points,2,threaded);
-                System.out.print(System.currentTimeMillis()-time + "      ");
+                stringBuilder.append(System.currentTimeMillis()-time + ",");
                 time = System.currentTimeMillis();
                 K_D_tree tree3 = new K_D_tree(i,points,3,threaded);
-                System.out.print(System.currentTimeMillis()-time + "      ");
+                stringBuilder.append(System.currentTimeMillis()-time + ",");
                 double[] returned;
                 double[][] brute = new double[searches][i];
+
+                long t = System.nanoTime();
+
                 for(int m=0;m<searches;m++)
                 {
                     brute[m] = Main.nearestbruteforce(points, point[m]);
                 }
-                time = System.nanoTime();
-                for(int m=0;m<searches;m++) {
+
+                stringBuilder.append((System.nanoTime()-t)/searches + ",") ;
+                long totalTime = 0;
+
+                for (int m = 0; m < searches; m++) {
+                    long startTime = System.nanoTime(); // Start timing before the search operation
                     returned = tree1.nearest_neighbor(point[m]);
+                    long endTime = System.nanoTime(); // End timing after the search operation
+                    totalTime += (endTime - startTime); // Add the time taken for this search operation
+
                     for (int g = 0; g < i; g++) {
                         if (returned[g] != brute[m][g])
                             throw new RuntimeException("Tree gave back wrong point");
                     }
                 }
-                System.out.print((System.nanoTime()-time)/searches + "      ");
-                time = System.nanoTime();
-                for(int m=0;m<searches;m++) {
+
+                long averageTime = totalTime / searches;
+                stringBuilder.append(averageTime + ",");
+                totalTime = 0;
+
+                for (int m = 0; m < searches; m++) {
+                    long startTime = System.nanoTime(); // Start timing before the search operation
                     returned = tree2.nearest_neighbor(point[m]);
+                    long endTime = System.nanoTime(); // End timing after the search operation
+                    totalTime += (endTime - startTime); // Add the time taken for this search operation
+
                     for (int g = 0; g < i; g++) {
                         if (returned[g] != brute[m][g])
                             throw new RuntimeException("Tree gave back wrong point");
                     }
                 }
-                System.out.print((System.nanoTime()-time)/searches + "      ");
-                time = System.nanoTime();
-                for(int m=0;m<searches;m++) {
+
+                averageTime = totalTime / searches;
+                stringBuilder.append(averageTime + ",");
+                totalTime = 0;
+
+                for (int m = 0; m < searches; m++) {
+                    long startTime = System.nanoTime(); // Start timing before the search operation
                     returned = tree3.nearest_neighbor(point[m]);
+                    long endTime = System.nanoTime(); // End timing after the search operation
+                    totalTime += (endTime - startTime); // Add the time taken for this search operation
+
                     for (int g = 0; g < i; g++) {
                         if (returned[g] != brute[m][g])
                             throw new RuntimeException("Tree gave back wrong point");
                     }
                 }
-                System.out.println((System.nanoTime()-time)/searches + "      ");
+
+                averageTime = totalTime / searches;
+                stringBuilder.append(averageTime + "\n");
                 size*=increment;
-                System.gc();
             }
+        }
+        try {
+            writer.write(stringBuilder.toString());
+            writer.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        System.out.println("Finished!");
+    }
+
+    private static void warmuprounds()
+    {
+        System.out.println("Warming up...");
+        Random rand = new Random();
+        int size = 100000,dim = 10;
+        double[][] points = new double[size][dim];
+        for(int k=0;k<size;k++)
+        {
+            for(int l=0;l<dim;l++)
+            {
+                points[k][l]= rand.nextInt();
+            }
+        }
+        K_D_tree tree1 = new K_D_tree(dim,points,1,false);
+        K_D_tree tree2 = new K_D_tree(dim,points,2,false);
+        K_D_tree tree3 = new K_D_tree(dim,points,3,false);
+
+        for(int i= 0; i<10000;i++)
+        {
+            double[] point= new double[dim];
+            for(int l=0;l<dim;l++)
+            {
+                point[l]= rand.nextInt();
+            }
+            tree1.nearest_neighbor(point);
+            tree2.nearest_neighbor(point);
+            tree3.nearest_neighbor(point);
+            Main.nearestbruteforce(points,point);
         }
     }
 //    public static void Quicksort(int[][][] arr, int l, int r,int k)
